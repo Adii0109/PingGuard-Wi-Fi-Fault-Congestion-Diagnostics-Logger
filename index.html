@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PingGuard - 7-Day Information Tab</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e2e; color: #cdd6f4; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: #181825; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .tab-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #313244; padding-bottom: 14px; margin-bottom: 20px; }
+        .tab-title { font-size: 22px; font-weight: bold; color: #89b4fa; }
+        select, button { padding: 8px 12px; font-size: 14px; border-radius: 5px; border: 1px solid #45475a; background: #313244; color: #cdd6f4; }
+        button { background: #89b4fa; color: #11111b; font-weight: bold; border: none; cursor: pointer; margin-left: 8px; }
+        button:hover { background: #b4befe; }
+        .session-card { border: 1px solid #313244; border-left: 5px solid #89b4fa; border-radius: 6px; padding: 15px; margin-bottom: 16px; background: #1e1e2e; }
+        .session-header { font-weight: bold; font-size: 16px; color: #89b4fa; margin-bottom: 10px; }
+        .entry { padding: 8px 0; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .entry:last-child { border-bottom: none; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; color: #11111b; }
+        .HEALTHY { background: #a6e3a1; }
+        .HEAVY_TRAFFIC { background: #fab387; }
+        .NO_INTERNET { background: #f38ba8; }
+        .WIFI_DISCONNECTED { background: #cba6f7; }
+        .time { font-size: 12px; color: #a6adc8; min-width: 65px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tab-header">
+            <div class="tab-title">PingGuard — Information Tab (7-Day Log)</div>
+            <div>
+                <label for="daySelect"><strong>Select Day:</strong></label>
+                <select id="daySelect" onchange="loadRecords()"></select>
+                <button onclick="loadRecords()">Refresh</button>
+            </div>
+        </div>
+
+        <div id="recordsContainer">Loading records...</div>
+    </div>
+
+    <script>
+        async function loadDays() {
+            const res = await fetch('/api/days');
+            const data = await res.json();
+            const select = document.getElementById('daySelect');
+            const currentVal = select.value;
+            select.innerHTML = '';
+
+            if (data.days.length === 0) {
+                const opt = document.createElement('option');
+                opt.textContent = 'No days logged yet';
+                select.appendChild(opt);
+                document.getElementById('recordsContainer').innerHTML = '<p>No PingGuard events recorded in the last 7 days.</p>';
+                return;
+            }
+
+            data.days.forEach(day => {
+                const opt = document.createElement('option');
+                opt.value = day;
+                opt.textContent = day;
+                select.appendChild(opt);
+            });
+
+            if (currentVal && data.days.includes(currentVal)) {
+                select.value = currentVal;
+            }
+            loadRecords();
+        }
+
+        async function loadRecords() {
+            const day = document.getElementById('daySelect').value;
+            if (!day || day === 'No days logged yet') return;
+
+            const res = await fetch(`/api/records?day=${day}`);
+            const data = await res.json();
+            const container = document.getElementById('recordsContainer');
+            container.innerHTML = '';
+
+            const sessions = Object.keys(data.sessions);
+            if (sessions.length === 0) {
+                container.innerHTML = '<p>No session entries found for this day.</p>';
+                return;
+            }
+
+            sessions.forEach(sessionId => {
+                const card = document.createElement('div');
+                card.className = 'session-card';
+                let html = `<div class="session-header">${sessionId}</div>`;
+
+                data.sessions[sessionId].forEach(item => {
+                    const pingText = item.ping_ms >= 0 ? `(${item.ping_ms} ms)` : '';
+                    html += `
+                        <div class="entry">
+                            <span class="time">[${item.time_logged}]</span>
+                            <span class="badge ${item.status}">${item.status}</span>
+                            <span>${item.details} <strong>${pingText}</strong></span>
+                        </div>
+                    `;
+                });
+                card.innerHTML = html;
+                container.appendChild(card);
+            });
+        }
+
+        loadDays();
+    </script>
+</body>
+</html>
